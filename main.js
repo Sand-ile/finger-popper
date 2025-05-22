@@ -1,3 +1,24 @@
+class AudioControl {
+ constructor(){
+  this.newgame = document.getElementById('newgame');
+  this.boom1 = document.getElementById('boom1');
+  this.boom2 = document.getElementById('boom2');
+  this.boom3 = document.getElementById('boom3');
+  this.boom4 = document.getElementById('boom4');
+  this.slide = document.getElementById('slide');
+  this.win = document.getElementById('win');
+  this.lose = document.getElementById('lose');
+  this.scream = document.getElementById('scream');
+
+  this.boomSounds = [this.boom1, this.boom2, this.boom3, this.boom4];
+ }
+
+ play(audio){
+  audio.currentTime = 0;
+  audio.play();
+ }
+};
+
 
 // Game class
 class Game {
@@ -15,11 +36,20 @@ class Game {
 
    this.score = 0;
    this.lives;
-   this.winningScore = 5;
+   this.winningScore = 25;
    this.message1 = 'Run!!';
    this.message2 = 'Or get Eaten!!';
    this.message3 = 'Press "ENTER" or "R" to restart';
+   this.crewImage = document.getElementById('crewSprite');
+   this.crewMembers = [];
    this.gameOver = true;
+   this.debug = false;
+
+   this.spriteTimer = 0;
+   this.spriteInterval = 120;
+   this.spriteUpdate = false;
+
+   this.sound = new AudioControl();
 
    this.mouse = {
     x: undefined,
@@ -85,6 +115,8 @@ class Game {
      this.start();
     } else if( e.key === ' ' || e.key.toLowerCase() === 'f'){
      this.toggleFullScreen();
+    } else if(e.key.toLowerCase() === 'd'){
+     this.debug = !this.debug;
     }
    });
    //End of keyup event
@@ -92,7 +124,8 @@ class Game {
 start(){
  this.resize(window.innerWidth, window.innerHeight);
  this.score = 0;
- this.lives = 3;
+ this.lives = 10;
+ this.generateCrew();
  this.gameOver = false;
  this.enemiesPool.forEach((enemy) => {
   enemy.reset();
@@ -102,6 +135,19 @@ start(){
   const enemy = this.getEnemy();
   if(enemy) enemy.start();
  };
+
+ this.sound.newgame.play();
+}
+
+generateCrew(){
+ this.crewMembers = [];
+
+ for(let i = onabort; i < this.lives; i++){
+  this.crewMembers.push({
+   frameX: Math.floor(Math.random() * 5),
+   frameY: Math.floor(Math.random() * 5),
+  })
+ }
 }
 
 
@@ -136,7 +182,14 @@ start(){
 
  createEnemyPool(){
   for(let i = 0; i < this.numberOfEnemies; i++){
-   this.enemiesPool.push(new Enemy(this));
+   const randomNumber = Math.random();
+   if(randomNumber < 0.7) {
+    this.enemiesPool.push(new Beetlemorph(this));
+   } else {
+    this.enemiesPool.push(new Lobstermorph(this));
+    this.enemiesPool.push(new Phantommorph(this));
+   }
+   
   }
  }
 
@@ -164,10 +217,22 @@ start(){
    if(this.lives < 1){
     this.message1 = 'Aargh!';
     this.message2 = 'The crew were Eaten!';
+    this.sound.play(this.sound.lose);
    } else if(this.score >= this.winningScore) {
     this.message1 = 'Well done!';
     this.message2 = 'You escaped the swarm';
+    this.sound.play(this.sound.win);
    }
+  }
+ }
+
+ handleSpriteTimer(deltaTime){
+  if(this.spriteTimer < this.spriteInterval){
+   this.spriteTimer += deltaTime;
+   this.spriteUpdate = false;
+  } else {
+   this.spriteTimer = 0;
+   this.spriteUpdate = true;
   }
  }
 
@@ -176,7 +241,9 @@ start(){
   this.ctx.textAlign = 'left';
   this.ctx.fillText('Score: '+ this.score, 20, 40);
   for(let i = 0; i < this.lives; i++){
-   this.ctx.fillRect(20 + 15 * i, 60, 10, 25);
+   const w = 20;
+   const h = 45;
+   this.ctx.drawImage( this.crewImage, w * this.crewMembers[i].frameX, h * this.crewMembers[i].frameY, w, h, 20 + 15 * i, 60, w, h);
   }
 
   if(this.lives < 1 || this.score >= this.winningScore){
@@ -196,10 +263,14 @@ start(){
 
 
  render(deltaTime){
+  this.handleSpriteTimer(deltaTime);
   this.drawStatusText();
   if(!this.gameOver) this.handleEnemies(deltaTime);
-  this.enemiesPool.forEach((enemy) => {
-   enemy.update();
+ 
+  for(let i = this.enemiesPool.length -1; i >= 0; i--){
+   this.enemiesPool[i].update(deltaTime);
+  }
+   this.enemiesPool.forEach((enemy) => {
    enemy.draw()
   } );
  }
